@@ -165,6 +165,14 @@ jobs:
         run: |
           args=()
           if [ -n "$IPSW_URL" ]; then args+=(--ipsw "$IPSW_URL"); fi
+          board="$UNIXNU_DEVICE/board.toml"
+          cp "$board" "$RUNNER_TEMP/cheeseburger-board.toml"
+          trap 'cp "$RUNNER_TEMP/cheeseburger-board.toml" "$board"' EXIT
+          grep -q '"build-sheng-pmgr.py"' "$board"
+          sed -i '' 's/"build-sheng-pmgr.py"/"build-sheng-pmgr-stub.py"/' "$board"
+          ./unixnu build kernel "${args[@]}" -D "$UNIXNU_DEVICE"
+          test -s out/cheeseburger/kernel/kernel.macho
+          cp "$RUNNER_TEMP/cheeseburger-board.toml" "$board"
           ./unixnu build kernel "${args[@]}" -D "$UNIXNU_DEVICE"
 
       - name: Debug XNU patch source
