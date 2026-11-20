@@ -35,7 +35,7 @@ fi
 # overlap (native-aes-personality and h158-drop-personality edit the same lines), so a
 # second pass fails "patch does not apply" for a patch that is in fact applied.
 # macos-build-kernel.sh sets XNU_SKIP_PATCH_LOOP=1 once the marker below is present.
-if [ "${XNU_SKIP_PATCH_LOOP:-0}" != 1 ]; then
+if [ "${XNU_SKIP_PATCH_LOOP:-0}" != 1 ] && [ ! -f .cache/xnu-work/.git/unixnu-baseline-patches-applied ]; then
 # The optional observation hooks overlap existing root/exec patch context.
 # Remove them first so earlier independent patches retain their idempotent checks.
 # The same holds for the boot-time GPU addon mount and the staged system apps copy (zzy), which edit the owner Data mount function
@@ -59,6 +59,7 @@ for PATCH in "$ROOT"/patches/xnu/*.patch "$ROOT"/kits/NativePrelink/patches/*.pa
     git -C .cache/xnu-work apply "$PATCH"
   fi
 done
+touch .cache/xnu-work/.git/unixnu-baseline-patches-applied
 fi
 export XNU_AVAILABILITY_PL=$ROOT/.cache/fakeroot/usr/local/libexec/availability.pl
 python3 scripts/prepare-xnu-source.py
