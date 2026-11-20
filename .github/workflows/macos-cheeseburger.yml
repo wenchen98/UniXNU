@@ -152,7 +152,7 @@ jobs:
             curl -fLSs --retry 3 "$base/$f" -o "$cache/$f"
           done
           echo "OP5_A540_FIRMWARE=$cache" >> "$GITHUB_ENV"
-          kc="$(./unixnu ipsw extract KernelCache -D "$UNIXNU_DEVICE" | tail -1)"
+          kc="$(./unixnu ipsw fetch KernelCache -D "$UNIXNU_DEVICE" | tail -1)"
           test -s "$kc"
           echo "OP5_KERNELCACHE=$kc" >> "$GITHUB_ENV"
           python3 - <<'PY'
