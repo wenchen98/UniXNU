@@ -92,6 +92,8 @@ jobs:
           config="$UNIXNU_DEVICE/configs/cheeseburger_defconfig"
           grep -Fxq '# CONFIG_XNU_NATIVE_LEGACY_DISPLAY is not set' "$config"
           sed -i '' 's/^# CONFIG_XNU_NATIVE_LEGACY_DISPLAY is not set$/CONFIG_XNU_NATIVE_LEGACY_DISPLAY=y/' "$config"
+          sed -i '' '/^# CONFIG_XNU_NATIVE_KEYSTORE is not set$/d; /^CONFIG_XNU_NATIVE_KEYSTORE=/d' "$config"
+          printf '\nCONFIG_XNU_NATIVE_KEYSTORE=y\n' >> "$config"
           ./unixnu defconfig cheeseburger_defconfig -D "$UNIXNU_DEVICE"
           ./unixnu fetch xnu libplatform libdispatch AvailabilityVersions libpthread \
                           corecrypto-2023 IOStorageFamily -D "$UNIXNU_DEVICE"
