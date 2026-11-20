@@ -122,6 +122,26 @@ jobs:
       - name: Reset cached XNU worktree
         run: rm -rf out/cheeseburger/tree
 
+      - name: Use runner LLVM for device archive tools
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from shutil import which
+
+          objcopy = which("llvm-objcopy")
+          if not objcopy:
+              raise SystemExit("llvm-objcopy is missing from PATH")
+          scripts = Path(os.environ["UNIXNU_DEVICE"]) / "scripts"
+          for name in ("build-sheng-pmgr.py", "build-native-ufs-runtime.py"):
+              path = scripts / name
+              source = path.read_text()
+              old = "Path('/opt/local/bin/llvm-objcopy')"
+              if old not in source:
+                  raise SystemExit(f"{path}: expected MacPorts fallback is missing")
+              path.write_text(source.replace(old, f"Path({objcopy!r})"))
+          PY
+
       - name: Build kernel
         env:
           IPSW_URL: ${{ inputs.ipsw_url }}
