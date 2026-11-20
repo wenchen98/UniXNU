@@ -114,7 +114,7 @@ jobs:
             extra+=(--preboot-overlay build/preboot-overlay)
           fi
           python3 scripts/prepare-owner-data-fixture.py --skeleton --size-mib 512 --packed \
-            --output build/owner-data-fixture "${extra[@]}"
+            --output build/owner-data-fixture ${extra[@]+"${extra[@]}"}
           uuid="$(python3 -c 'import json; print(json.load(open("build/owner-data-fixture/seed.json"))["volume_uuid"])')"
           test -n "$uuid"
           echo "XNU_OWNER_DATA_VOLUME_UUID=$uuid" >> "$GITHUB_ENV"
@@ -150,6 +150,7 @@ jobs:
       - name: Debug XNU patch source
         if: always()
         run: |
+          test -d out/cheeseburger/tree || exit 0
           find out/cheeseburger/tree -path '*xnu-work/bsd/kern/kern_exec.c' -print
           p=$(find out/cheeseburger/tree -path '*xnu-work/bsd/kern/kern_exec.c' -print -quit)
           if [ -n "$p" ]; then
