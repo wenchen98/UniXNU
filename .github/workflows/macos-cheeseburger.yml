@@ -142,12 +142,47 @@ jobs:
               path.write_text(source.replace(old, f"Path({objcopy!r})"))
           PY
 
+      - name: Prepare Beta6.2 GPU firmware inputs
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/a540"
+          mkdir -p "$cache"
+          base=https://raw.githubusercontent.com/FabricioSC123/vendor_oneplus_cheeseburger/master/proprietary/vendor/firmware
+          for f in a530_pm4.fw a530_pfp.fw a540_gpmu.fw2 a540_zap.mdt a540_zap.b02 a540_zap.elf; do
+            curl -fLSs --retry 3 "$base/$f" -o "$cache/$f"
+          done
+          echo "OP5_A540_FIRMWARE=$cache" >> "$GITHUB_ENV"
+          kc="$(./unixnu ipsw extract KernelCache -D "$UNIXNU_DEVICE" | tail -1)"
+          test -s "$kc"
+          echo "OP5_KERNELCACHE=$kc" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path("scripts/gen-a540-firmware.py")
+          s = path.read_text()
+          for old, new in (
+              ("530c0a89308b275231bbcbaf0eb3104cccbb885e9014993aea5d6d81aa9063be",
+               "879d9a530f253efd8168fd32fe4ee4b56f78bb23d681a405249072c589bf127e"),
+              ("efac89c56dd23caad79ba247f61c54a2624b4e0f61c391d2c92f3065c22a6f40",
+               "cd4620f9de8d77272df15848bcabfc5b1e9e7983d038c6d2e02176019927b82f"),
+          ):
+              assert s.count(old) == 1
+              s = s.replace(old, new)
+          path.write_text(s)
+          board = Path(os.environ["UNIXNU_DEVICE"]) / "board.toml"
+          s = board.read_text()
+          key = '  "build-sheng-pmgr.py",'
+          assert s.count(key) == 1
+          board.write_text(s.replace(key, '  "build-op5-legacy-display.py",' + chr(10) + key))
+          PY
+
       - name: Build kernel
         env:
           IPSW_URL: ${{ inputs.ipsw_url }}
           DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
           # Temporary B5 bring-up: SystemOS at /private/preboot with the owner
           # dyld cache carrier enabled.
+          XNU_NATIVE_LEGACY_DISPLAY: 1
           XNU_OWNER_CACHE_MOUNT: 1
           XNU_OWNER_CACHE_STARTUP: 1
           XNU_OWNER_CACHE_CARRIER: 1
