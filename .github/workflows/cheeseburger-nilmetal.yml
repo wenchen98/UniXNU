@@ -12,6 +12,7 @@ jobs:
         env:
           DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
         run: |
+          git submodule update --init --depth 1 drivers/NativeAdreno
           mkdir -p drivers/NativeMetal
           curl --fail --retry 3 --location https://raw.githubusercontent.com/lss717/AdrenoMetal/ff4420ef540331d9755c147698d191cec605030d/A540TracePlugin.mm -o drivers/NativeMetal/A540TracePlugin.mm
           python3 scripts/build-a540-trace-plugin.py build/h429.gpuaddon
