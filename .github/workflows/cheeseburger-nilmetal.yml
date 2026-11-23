@@ -1,0 +1,24 @@
+name: Cheeseburger NilMetal diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the pinned Metal source and build the plugin
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+        run: |
+          git submodule update --init --depth 1 drivers/NativeMetal
+          python3 scripts/build-nil-metal-plugin.py
+          python3 scripts/make-nil-gpu-addon.py build/nilmetal.gpuaddon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nilmetal
+          path: |
+            build/nilmetal.gpuaddon
+            build/adreno-metal-plugin/trust.json
+          if-no-files-found: error
