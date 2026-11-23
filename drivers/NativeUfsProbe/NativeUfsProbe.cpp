@@ -1177,7 +1177,7 @@ static IOBufferMemoryDescriptor *
 allocLowContiguous (IOOptionBits options, uint32_t wanted, uint32_t *capacity,
                     uint64_t *phys, IOByteCount *contiguous)
 {
-  static const uint32_t shares[] = {1, 2, 4, 8, 16, 32};
+  static const uint32_t shares[] = {1, 2, 4, 8, 16, 32, 64};
   for (unsigned i = 0; i < sizeof (shares) / sizeof (shares[0]); ++i) {
     uint32_t size = wanted / shares[i];
     if (size < 4096U) {
@@ -1192,7 +1192,7 @@ allocLowContiguous (IOOptionBits options, uint32_t wanted, uint32_t *capacity,
     }
     IOByteCount cont = 0;
     uint64_t where = dma->getPhysicalSegment (0, &cont, kIOMemoryMapperNone);
-    if (!where || (where & 0xfffU) || cont < size) {
+    if (!where || (where & 0xfffU) || cont < size || where > 0x100000000ULL - size) {
       IOLog ("NATIVE_UFS_DMA: low size=%x invalid phys=%llx cont=%llx\n", size,
              (unsigned long long) where, (unsigned long long) cont);
       dma->release ();
@@ -4343,6 +4343,13 @@ NativeUfsProbe::start (IOService *provider)
   IOByteCount readContiguous = 0;
   IOBufferMemoryDescriptor *readDma = allocLowContiguous (
     readOptions, UFS_DATA_MAX, &readCapacity, &readPhys, &readContiguous);
+  if (!readDma && gptPhys <= 0x100000000ULL - blockSize[0]) {
+    // The GPT reads already proved this aligned, low, single-block buffer.
+    readDma = gptDma;
+    readCapacity = blockSize[0];
+    readPhys = gptPhys;
+    readContiguous = gptContiguous;
+  }
   if (!readDma) {
     panic ("NATIVE_UFS_GPT: no low read DMA buffer (wanted %x)", UFS_DATA_MAX);
   }
