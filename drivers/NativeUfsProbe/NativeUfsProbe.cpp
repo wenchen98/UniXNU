@@ -185,7 +185,7 @@ static void h103MaybePublishIogpu (void);
 extern "C" {
 volatile uint32_t native_h103_slot_state = 0;
 }
-// H410: pause state for the persistent 32 MiB userdata_ios log sink. It only
+// H410: pause state for the persistent 32 MiB userdata log sink. It only
 // gates h103 log writes (slots/header), never ordinary UFS/APFS I/O. Written
 // by the heartbeat thread; USB completions merely update the counters above.
 static volatile int gH103DiskPaused;
@@ -1209,7 +1209,7 @@ allocLowContiguous (IOOptionBits options, uint32_t wanted, uint32_t *capacity,
 }
 
 // H103 persistent log snapshot: SHLOG001 v3 header + 1 MiB kernel msgbuf in the
-// last 32 MiB of userdata_ios. Written once after root; the boot log ring holds
+// last 32 MiB of userdata. Written once after root; the boot log ring holds
 // the early NATIVE_LEGACY lines. TWRP reads the window back read-only.
 #define H103_LOG_BLOCKS 8192U
 #define H103_LOG_MSG_BLOCKS 256U
@@ -4289,7 +4289,7 @@ NativeUfsProbe::start (IOService *provider)
   ADD ("cur=%llx bak=%llx usable=%llx..%llx\n",
        currentLba, backupLba, firstUsable, lastUsable);
   const char *const keys[] = {
-    "userdata_ios", "persist", "cache", "misc", "metadata", "system", "vendor",
+    "userdata", "persist", "cache", "misc", "metadata", "system", "vendor",
     "boot", "recovery", "modem", "modemst1", "modemst2", "fsg", "fsc",
     "keymaster", "abl", "xbl", "tz", "devcfg", "devinfo"
   };
@@ -4313,7 +4313,7 @@ NativeUfsProbe::start (IOService *provider)
       name[length++] = (hi == 0 && lo >= 32 && lo < 127) ? char (lo) : '?';
     }
     name[length] = 0;
-    if (!__builtin_strcmp (name, "userdata_ios")) {
+    if (!__builtin_strcmp (name, "userdata")) {
       rootFirst = first;
       rootLast = last;
     }
@@ -4333,7 +4333,7 @@ NativeUfsProbe::start (IOService *provider)
   }
   ADD ("partitions=%u listed=%u\n", entryCount, listed);
   IOLog ("%s", text);
-  IOLog ("NATIVE_UFS_ROOT: userdata_ios LBA %llx..%llx\n", rootFirst, rootLast);
+  IOLog ("NATIVE_UFS_ROOT: userdata LBA %llx..%llx\n", rootFirst, rootLast);
 
   IOOptionBits readOptions = static_cast<IOOptionBits> (kIODirectionInOut) |
                              static_cast<IOOptionBits> (kIOMemoryPhysicallyContiguous) |
@@ -4403,15 +4403,17 @@ NativeUfsProbe::start (IOService *provider)
     uint8_t readUserdata[16] = { 0x28 };
     putBe32 (readUserdata + 2, static_cast<uint32_t> (rootFirst));
     readUserdata[8] = 1;
-    if (ufsCommand (&queue, 0, readUserdata, sizeof (header), header)) {
+    if (rootFirst && rootLast >= rootFirst &&
+        ufsCommand (&queue, 0, readUserdata, sizeof (header), header)) {
       uint32_t magic = getLe32 (header);
       uint32_t magic2 = getLe32 (header + 4);
       uint32_t version = getLe32 (header + 8);
       uint32_t windows = getLe32 (header + 12);
       uint64_t imageBytes = getLe64 (header + 16);
-      IOLog ("NATIVE_UFS_ROOT: userdata_ios magic=%08x/%08x ver=%u windows=%u image=%llx\n",
+      IOLog ("NATIVE_UFS_ROOT: userdata magic=%08x/%08x ver=%u windows=%u image=%llx\n",
              magic, magic2, version, windows, imageBytes);
-      if (magic == 0x474e4853U && magic2 == 0x544f4f52U && windows <= 4) {
+      if (magic == 0x474e4853U && magic2 == 0x544f4f52U && windows <= 4 &&
+          imageBytes >= sizeof (header) && imageBytes <= (rootLast - rootFirst + 1) * 4096ULL) {
         rootImageBytes = imageBytes;
         for (uint32_t index = 0; index < windows; index++) {
           const uint8_t *entry = header + 24 + index * 128;
@@ -4499,7 +4501,7 @@ NativeUfsProbe::start (IOService *provider)
   uint32_t logSecs = 10;
   PE_parse_boot_argn ("h103-log-secs", &logSecs, sizeof logSecs);
   gH103LogSecs = (logSecs >= 1 && logSecs <= 60) ? logSecs : 10;
-  // H104f: do not touch userdata_ios until backboardd has actually exec'd.
+  // H104f: do not touch userdata until backboardd has actually exec'd.
   // The early slot writes contend with driverkitd/backboardd's UFS reads and
   // make the launchd ordering race lose; slot0 boots are stable. The message
   // buffer keeps accumulating, so the first post-backboardd write still dumps
@@ -4639,7 +4641,7 @@ NativeUfsProbe::start (IOService *provider)
     }
   }
 
-  // Persistent log window: the last 32 MiB of userdata_ios. Write one
+  // Persistent log window: the last 32 MiB of userdata. Write one
   // snapshot synchronously from start (the root path is already proven) and
   // another from the first 64 MiB of window reads. Neither depends on the
   // heartbeat thread or on a separately created log thread.
