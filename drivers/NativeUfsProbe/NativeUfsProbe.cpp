@@ -1392,6 +1392,7 @@ class NativeUfsProbe : public IOService {
   UfsQueue fQueue = {};
   OSSharedPtr<IOMemoryMap> fListMap;
   OSSharedPtr<IOMemoryMap> fUcdMap;
+  OSSharedPtr<IOMemoryMap> fReservedReadMap;
   IOLock *fLock = nullptr;
   bool fReady = false;
   uint64_t fLogFirst = 0;
@@ -4350,10 +4351,22 @@ NativeUfsProbe::start (IOService *provider)
     readPhys = gptPhys;
     readContiguous = gptContiguous;
   }
+  uint8_t *readData = readDma ? static_cast<uint8_t *> (readDma->getBytesNoCopy ()) : nullptr;
   if (!readDma) {
-    panic ("NATIVE_UFS_GPT: no low read DMA buffer (wanted %x)", UFS_DATA_MAX);
+    uint64_t reserved = 0;
+    PE_parse_boot_argn ("ufs-dma", &reserved, sizeof (reserved));
+    if (reserved && !(reserved & 0xfff) && reserved <= 0x100000000ULL - UFS_DATA_MAX) {
+      readData = reinterpret_cast<uint8_t *> (mapPhys (reserved, UFS_DATA_MAX, fReservedReadMap));
+      if (readData) {
+        readPhys = reserved;
+        readCapacity = UFS_DATA_MAX;
+        readContiguous = UFS_DATA_MAX;
+      }
+    }
+    if (!readData) {
+      panic ("NATIVE_UFS_GPT: no mapped low read DMA (reserved %llx gpt %llx)", reserved, gptPhys);
+    }
   }
-  uint8_t *readData = static_cast<uint8_t *> (readDma->getBytesNoCopy ());
   if (!readData) {
     panic ("NATIVE_UFS_GPT: read DMA mapping missing phys=%llx",
            (unsigned long long) readPhys);
