@@ -35,7 +35,7 @@ env:
   P21_DEVICE: ${{ github.workspace }}/device
   P21_OUT: ${{ github.workspace }}/out
   P21_BUILD_DIR: ${{ github.workspace }}/cheeseburger-p21
-  P21_POLICY_INPUTS: ${{ runner.temp }}/inputs.S
+  P21_POLICY_INPUTS: ${{ github.workspace }}/build/inputs.S
   JOBS: ${{ inputs.jobs }}
   WORK: out/cheeseburger/ipados-17.7.11-21H461/cheeseburger
 
