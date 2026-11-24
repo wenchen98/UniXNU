@@ -1,0 +1,6 @@
+# Local SoC override: the MSM8998 support inputs of this device repository are not published as a
+# feed (soc/msm8998; see docs/P21_OFFICIAL_ADAPTATION.md, "本地 SoC override 在忽略的 local.toml").
+[[source]]
+kind = "soc"
+name = "msm8998"
+local = "soc/msm8998"
