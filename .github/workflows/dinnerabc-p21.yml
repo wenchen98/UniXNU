@@ -59,6 +59,11 @@ jobs:
           repository: DinnerABC/UniXNU-cheeseburger
           ref: ${{ inputs.device_ref }}
           path: device
+          persist-credentials: false
+
+      # A workflow file in the device repository would otherwise be triggered by its own checkout.
+      - name: Drop the device repository's CI definition
+        run: rm -rf device/.github
 
       - uses: actions/setup-python@v5
         with:
