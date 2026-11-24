@@ -4,7 +4,7 @@ Never synthesize missing hardware exports. Save exclusions with exact names.
 """
 from pathlib import Path
 import json,re,subprocess,hashlib,sys,shutil,os
-R=Path(__file__).resolve().parents[1];S=R/'package/BoardRuntime';objects=[Path(x) for x in sys.argv[1:]]
+R=Path(os.environ['P21_BOARD_ROOT']).resolve();S=R/'package/BoardRuntime';objects=[Path(x) for x in sys.argv[1:]]
 output=subprocess.check_output([shutil.which('llvm-nm'),'--defined-only',*map(str,objects)],text=True)
 names={line.split()[-1][1:] for line in output.splitlines() if line.split() and line.split()[-1].startswith('_')}
 text=(S/'OfficialLogReports.template.inc').read_text();prefix=(S/'BootLog.c').read_text().split('enum {LogBlock')[0]
