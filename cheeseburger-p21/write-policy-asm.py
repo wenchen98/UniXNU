@@ -4,26 +4,15 @@
 Same table as DinnerABC's scripts/p12-build-policies.py: the owner-signed manifests of the two
 root windows and the trusted public anchor.
 
-usage: write-policy-asm.py <unpacked policies.zip> <output inputs.S>
-       write-policy-asm.py --stub <output inputs.S>
+usage: write-policy-asm.py <directory holding the unpacked policies> <output inputs.S>
 """
 import json
 import sys
 from pathlib import Path
 
-if sys.argv[1] == '--stub':
-    out = Path(sys.argv[2])
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text('.section __DATA_CONST,__const\n.balign 8\n.globl _verified_root_key\n_verified_root_key:\n'
-                   + '.byte ' + ','.join(['0'] * 395) + '\n.balign 8\n.globl _verified_root_policies,_verified_root_policy_count\n'
-                   '_verified_root_policies:\n.quad 0, 0\n_verified_root_policy_count:\n.quad 0\n')
-    print('wrote stub policies (no root can be published with them)')
-    sys.exit(0)
-
 policies, out = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 table = json.loads((policies / 'policies.json').read_text())['policies']
-names = [entry['name'] for entry in table]
-assert names == ['OS', 'SystemOS'], names
+assert [entry['name'] for entry in table] == ['OS', 'SystemOS'], table
 lines = ['.section __DATA_CONST,__const', '.balign 8']
 for entry in table:
     manifest = policies / entry['manifest']

@@ -1,10 +1,10 @@
 # Rebuild DinnerABC's P21 (2026-10-31) OnePlus 5 kernel: the one whose CPU-rendered desktop and
 # touch were verified on hardware (DinnerABC/UniXNU-cheeseburger HANDOFF.md).
 #
-# Only the steps that need Xcode run here: framework checkout, board runtime, XNU, prelink and
-# the panic screen.  The root policies, device tree, payload and boot image are assembled on the
-# workstation from these outputs.  This branch of the fork is the official framework at 16e592ab
-# (the commit the device repository pins) plus the cheeseburger-p21/ directory.
+# Only the steps that need Xcode run here: root policies, board runtime, XNU, prelink and the
+# panic screen.  The device tree, payload and boot image are assembled on the workstation from
+# these outputs.  This branch of the fork is the official framework at 16e592ab (the commit the
+# device repository pins) plus the cheeseburger-p21/ directory.
 name: DinnerABC P21 kernel (cheeseburger)
 
 on:
@@ -14,10 +14,6 @@ on:
         description: Commit of DinnerABC/UniXNU-cheeseburger to build
         required: true
         default: a42377d08efcd3c1a5bc71a1161788ed676267a5
-      policies_tag:
-        description: Release tag of this repository holding policies.zip (empty = stub policies, the kernel then refuses its root at boot)
-        required: false
-        default: ""
       jobs:
         description: Parallel build jobs
         required: false
@@ -33,7 +29,6 @@ concurrency:
 env:
   HOMEBREW_NO_AUTO_UPDATE: 1
   HOMEBREW_NO_INSTALL_CLEANUP: 1
-  GH_TOKEN: ${{ github.token }}
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
   UNIXNU_DEVICE: ${{ github.workspace }}/device
   P21_FRAMEWORK: ${{ github.workspace }}
@@ -73,6 +68,7 @@ jobs:
         run: |
           sw_vers
           uname -m
+          df -h "$HOME" | tail -1
           xcodebuild -version
           xcrun --sdk iphoneos --find mig || echo 'mig not found for iphoneos'
           /usr/bin/compression_tool -h >/dev/null 2>&1 && echo 'compression_tool ok' || echo 'compression_tool missing'
@@ -91,30 +87,41 @@ jobs:
           git status --short
 
       - name: Point the SoC layer at the device repository
-        run: cp cheeseburger-p21/local.toml device/local.toml
-
-      - name: Prepare the verified-root policies
-        env:
-          POLICIES_TAG: ${{ inputs.policies_tag }}
-        run: |
-          set -euo pipefail
-          if [ -z "$POLICIES_TAG" ]; then
-            python3 cheeseburger-p21/write-policy-asm.py --stub "$P21_POLICY_INPUTS"
-            exit 0
-          fi
-          download="$RUNNER_TEMP/policies-download"
-          unpacked="$RUNNER_TEMP/policies"
-          mkdir -p "$download" "$unpacked"
-          gh release download "$POLICIES_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'policies.zip' --pattern 'policies.zip.sha256' --dir "$download"
-          (cd "$download" && shasum -a 256 -c policies.zip.sha256)
-          unzip -q "$download/policies.zip" -d "$unpacked"
-          python3 cheeseburger-p21/write-policy-asm.py "$unpacked" "$P21_POLICY_INPUTS"
+        run: cp cheeseburger-p21/device-local.toml device/local.toml
 
       - name: Select the device configuration
         run: |
           ./unixnu defconfig cheeseburger_defconfig -D "$P21_DEVICE" --out "$P21_OUT"
           ./unixnu status -D "$P21_DEVICE" --out "$P21_OUT"
+
+      - name: Restore the cached root policies
+        id: policies
+        uses: actions/cache/restore@v4
+        with:
+          path: build/policies
+          key: dinnerabc-p21-policies-fd43ee70-${{ hashFiles('cheeseburger-p21/make-policies.py') }}
+
+      - name: Sign the root policies of the image on the phone
+        if: steps.policies.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          rm -rf build/policies
+          os="$(./unixnu ipsw fetch OS -D "$P21_DEVICE" --out "$P21_OUT" | tail -1)"
+          systemos="$(./unixnu ipsw fetch Cryptex1,SystemOS -D "$P21_DEVICE" --out "$P21_OUT" | tail -1)"
+          test -s "$os"
+          test -s "$systemos"
+          python3 cheeseburger-p21/make-policies.py --ipsw-dmgs "$os" "$systemos" build/policies
+          rm -f "$os" "$systemos"    # 9.4 GB; the kernel build needs the disk space
+
+      - name: Keep the root policies for the next run
+        if: steps.policies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/policies
+          key: ${{ steps.policies.outputs.cache-primary-key }}
+
+      - name: Assemble the policy table
+        run: python3 cheeseburger-p21/write-policy-asm.py build/policies "$P21_POLICY_INPUTS"
 
       - name: Fetch the original kernelcache
         run: |
@@ -178,6 +185,7 @@ jobs:
             out/cheeseburger/**/runtime-build/*.json
             out/cheeseburger/**/runtime-build/*.log
             out/state.json
+            build/policies/policies.json
           if-no-files-found: error
           retention-days: 14
 
